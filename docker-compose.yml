@@ -1,0 +1,72 @@
+services:
+  # ─── MSSQL 2022 ───────────────────────────────────────────────────────────────
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: erp_hurtos_mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "ERP_Hurtos_2024!"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "ERP_Hurtos_2024!" -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ─── CREAR BASE DE DATOS ──────────────────────────────────────────────────────
+  mssql-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      SA_PASSWORD: "ERP_Hurtos_2024!"
+    command: /bin/bash -c "/opt/mssql-tools18/bin/sqlcmd -C -S mssql -U sa -P 'ERP_Hurtos_2024!' -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'erp_hurtos') BEGIN CREATE DATABASE erp_hurtos END\""
+    restart: on-failure
+
+  # ─── BACKEND NODE.JS ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_backend
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DB_HOST: mssql
+      DB_PORT: 1433
+      DB_NAME: erp_hurtos
+      DB_USER: sa
+      DB_PASSWORD: "ERP_Hurtos_2024!"
+      DB_ENCRYPT: "false"
+      DB_TRUST_CERT: "true"
+      NODE_ENV: production
+      FRONTEND_URL: "http://localhost:4200"
+    ports:
+      - "4000:4000"
+    volumes:
+      - exports_vol:/tmp/exports
+    restart: unless-stopped
+
+  # ─── FRONTEND ANGULAR ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../frontendWeb
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_frontend
+    depends_on:
+      - backend
+    ports:
+      - "4200:80"
+    restart: unless-stopped
+
+volumes:
+  mssql_data:
+  exports_vol:
