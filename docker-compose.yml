@@ -1,58 +1,55 @@
 services:
-  # ─── MSSQL 2022 ───────────────────────────────────────────────────────────────
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: erp_hurtos_mssql
+  # ─── POSTGRES ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: erp_hurtos_postgres
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "ERP_Hurtos_2024!"
-      MSSQL_PID: "Developer"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123"
+      POSTGRES_DB: empresarial
     ports:
-      - "1433:1433"
+      - "5433:5432"
     volumes:
-      - mssql_data:/var/opt/mssql
+      - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "ERP_Hurtos_2024!" -Q "SELECT 1" || exit 1
+      test: ["CMD-SHELL", "pg_isready -U postgres -d empresarial"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 5
 
-  # ─── CREAR BASE DE DATOS ──────────────────────────────────────────────────────
-  mssql-init:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      SA_PASSWORD: "ERP_Hurtos_2024!"
-    command: /bin/bash -c "/opt/mssql-tools18/bin/sqlcmd -C -S mssql -U sa -P 'ERP_Hurtos_2024!' -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'erp_hurtos') BEGIN CREATE DATABASE erp_hurtos END\""
-    restart: on-failure
-
-  # ─── BACKEND NODE.JS ──────────────────────────────────────────────────────────
+  # ─── BACKEND NODE.JS (CORE BRIDGE) ──────────────────────────────────────────
   backend:
     build:
-      context: ../backend
+      context: ../ms-gestion-empresarial
       dockerfile: Dockerfile
     container_name: erp_hurtos_backend
     depends_on:
-      mssql:
+      postgres:
         condition: service_healthy
     environment:
       PORT: 4000
-      DB_HOST: mssql
-      DB_PORT: 1433
-      DB_NAME: erp_hurtos
-      DB_USER: sa
-      DB_PASSWORD: "ERP_Hurtos_2024!"
-      DB_ENCRYPT: "false"
-      DB_TRUST_CERT: "true"
-      NODE_ENV: production
-      FRONTEND_URL: "http://localhost:4200"
+      DATABASE_URL: "postgresql://postgres:123@postgres:5432/empresarial?schema=public"
+      JWT_SECRET: "super-secret-key-empresarial-123"
+      JWT_EXPIRES_IN: "8h"
+      ANALYSIS_SERVICE_URL: "http://electrical-analysis-ms:8000"
+      GROQ_API_KEY: "tu_groq_api_key_aqui"
     ports:
       - "4000:4000"
     volumes:
       - exports_vol:/tmp/exports
+    restart: unless-stopped
+
+  # ─── ELECTRICAL ANALYSIS MS (PYTHON) ─────────────────────────────────────────
+  electrical-analysis-ms:
+    build:
+      context: ../electrical-analysis-ms
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_analysis
+    environment:
+      OPENAI_API_KEY: "tu_openai_api_key_aqui"
+      OPENAI_MODEL: "gpt-4o-mini"
+    ports:
+      - "8000:8000"
     restart: unless-stopped
 
   # ─── FRONTEND ANGULAR ─────────────────────────────────────────────────────────
@@ -68,5 +65,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  mssql_data:
+  pg_data:
   exports_vol:
