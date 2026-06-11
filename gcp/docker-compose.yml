@@ -1,0 +1,14 @@
+services:
+  # ─── ELECTRICAL ANALYSIS MS (PYTHON FASTAPI) ───────────────────────────────
+  electrical-analysis-ms:
+    build:
+      context: ../../electrical-analysis-ms
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_analysis
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

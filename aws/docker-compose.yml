@@ -1,0 +1,41 @@
+services:
+  # ─── MS-DOCUMENTAL-DMS (JAVA SPRING BOOT) ──────────────────────────────────
+  ms-documental:
+    build:
+      context: ../../ms-documental-dms
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_dms
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_BUCKET_NAME: ${AWS_BUCKET_NAME}
+      DYNAMODB_DOCUMENTS_TABLE: ${DYNAMODB_DOCUMENTS_TABLE:-dms-documents}
+      DYNAMODB_AUDIT_TABLE: ${DYNAMODB_AUDIT_TABLE:-dms-audit-logs}
+      # Si quisieras usar Localstack de nuevo, descomentarías las dos lineas de abajo:
+      # AWS_ENDPOINT_URL: http://localstack:4566
+      # AWS_PUBLIC_ENDPOINT_URL: http://localstack:4566
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  # ─── MS-IA (INTELIGENCIA ARTIFICIAL CON PYTORCH) ───────────────────────────
+  ms-ia:
+    build:
+      context: ../../ms-ia
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_ia
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  # ─── BLOCKCHAIN (HARDHAT NODE) ─────────────────────────────────────────────
+  blockchain:
+    build:
+      context: ../../blockchain
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_blockchain
+    ports:
+      - "8545:8545"
+    restart: unless-stopped

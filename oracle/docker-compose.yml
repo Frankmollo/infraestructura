@@ -1,0 +1,59 @@
+services:
+  # ─── POSTGRES ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: erp_hurtos_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123}
+      POSTGRES_DB: ${DB_NAME:-empresarial}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-empresarial}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── BACKEND NODE.JS (CORE BRIDGE) ──────────────────────────────────────────
+  backend:
+    build:
+      context: ../../ms-gestion-empresarial
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DATABASE_URL: "postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-123}@postgres:5432/${DB_NAME:-empresarial}?schema=public"
+      JWT_SECRET: ${JWT_SECRET:-super-secret-key-empresarial-123}
+      JWT_EXPIRES_IN: "8h"
+      # CONEXIONES A OTRAS NUBES:
+      ANALYSIS_SERVICE_URL: ${GCP_ELECTRICAL_URL:-http://host.docker.internal:8000}
+      AI_SERVICE_URL: ${AWS_IA_URL:-http://host.docker.internal:5000}
+      DMS_SERVICE_URL: ${AWS_DMS_URL:-http://host.docker.internal:8081}
+      BLOCKCHAIN_RPC_URL: ${AWS_BLOCKCHAIN_URL:-http://host.docker.internal:8545}
+    ports:
+      - "4000:4000"
+    volumes:
+      - exports_vol:/tmp/exports
+    restart: unless-stopped
+
+  # ─── FRONTEND ANGULAR ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../../frontendWeb
+      dockerfile: Dockerfile
+    container_name: erp_hurtos_frontend
+    depends_on:
+      - backend
+    ports:
+      - "4200:80"
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  exports_vol:
